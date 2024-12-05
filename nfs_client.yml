@@ -1,0 +1,47 @@
+---
+- name: Настройка NFS клиента
+  hosts: nfs_client
+  become: yes
+  tasks:
+    - name: Установка пакета nfs-common
+      apt:
+        name: nfs-common
+        state: present
+        update_cache: yes
+
+    - name: Добавление строки в /etc/fstab для монтирования NFS
+      lineinfile:
+        path: /etc/fstab
+        line: "{{ nfs_server_ip }}:/srv/share /mnt nfs vers=3,noauto,x-systemd.automount 0 0"
+
+    - name: Перезагрузка демонов systemd
+      systemd:
+        name: remote-fs.target
+        state: restarted
+
+    - name: Перезапуск remote-fs.target
+      systemd:
+        name: remote-fs.target
+        state: restarted
+
+    - name: Монтирование NFS
+      command: mount /mnt
+
+    - name: Проверка монтирования
+      shell: "mount | grep /mnt"
+      register: mount_check
+      ignore_errors: yes
+    - debug:
+        var: mount_check.stdout
+
+    - name: Создание файла final_check на клиенте
+      file:
+        path: /mnt/final_check
+        state: touch
+
+    - name: Проверка создания файла final_check
+      stat:
+        path: /mnt/final_check
+      register: final_check_stat
+    - debug:
+        var: final_check_stat.stat.exists

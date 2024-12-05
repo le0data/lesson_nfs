@@ -1,0 +1,48 @@
+---
+- name: Настройка NFS сервера
+  hosts: nfs_server
+  become: yes
+  tasks:
+    - name: Установка nfs-kernel-server
+      apt:
+        name: nfs-kernel-server
+        state: present
+        update_cache: yes
+
+    - name: Вывод настроек сервера из /etc/nfs.conf
+      command: cat /etc/nfs.conf
+      register: nfs_conf
+    - debug:
+        var: nfs_conf.stdout
+
+    - name: Показать текущие активные соединения
+      command: ss -tnplu
+      register: ss_output
+    - debug:
+        var: ss_output.stdout
+
+    - name: Создание директории для экспорта
+      file:
+        path: /srv/share/upload
+        state: directory
+        mode: '0777'
+        owner: nobody
+        group: nogroup
+
+    - name: Добавление хоста в /etc/exports
+      copy:
+        dest: /etc/exports
+        content: |
+          /srv/share {{ nfs_client_ip }}(rw,sync,root_squash)
+        owner: root
+        group: root
+        mode: '0644'
+    
+    - name: Экспортирование директории
+      command: exportfs -r
+
+    - name: Проверка экспортируемых директорий
+      command: exportfs -s
+      register: exportfs_output
+    - debug:
+        var: exportfs_output.stdout
